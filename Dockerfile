@@ -23,23 +23,35 @@ WORKDIR /UI
 # 🧠 Klon oficiálního ComfyUI repozitáře
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyUI
 
-# 📦 Instalace Python závislostí
+# 📦 Instalace Python závislostí ComfyUI
 WORKDIR /UI/ComfyUI
 RUN pip3 install --upgrade pip setuptools wheel \
  && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
-# 🧩 Instalace oficiálního ComfyUI Manageru
+# 🧩 Instalace ComfyUI Manageru
 RUN mkdir -p /UI/ComfyUI/custom_nodes \
  && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager
+
+# 🛠️ Instalace JupyterLab a knihoven pro HW monitor
+RUN pip3 install jupyterlab psutil torch gpustat --prefer-binary
+
+# 🧩 Instalace Custom Node pro horní lištu (HWStats)
+RUN mkdir -p /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats
+RUN echo 'from ComfyUI import Node\nimport psutil, gpustat, torch\n\nclass HWStatsNode(Node):\n    @classmethod\n    def INPUT_TYPES(cls):\n        return {}\n\n    @classmethod\n    def RETURN_TYPES(cls):\n        return ("STRING",)\n\n    @classmethod\n    def FUNCTION(cls, **kwargs):\n        cpu_percent = psutil.cpu_percent(interval=0.5)\n        ram_percent = psutil.virtual_memory().percent\n        if torch.cuda.is_available():\n            try:\n                gpus = gpustat.GPUStatCollection.new_query()\n                gpu_list = [f\"{gpu.index}:{gpu.utilization}%\" for gpu in gpus.gpus]\n                gpu_info = \", \".join(gpu_list)\n            except:\n                gpu_info = \"GPU: error\"\n        else:\n            gpu_info = \"GPU: none\"\n        status = f\"CPU: {cpu_percent}% | RAM: {ram_percent}% | {gpu_info}\"\n        return (status,)' > /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/HWStats.py
+RUN touch /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/__init__.py
 
 # ✅ Kontrola main.py
 RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
 
-# 🔗 Kompatibilita s RunPodem (RunPod hledá /workspace/ComfyUI)
+# 🔗 Kompatibilita s RunPodem
 RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 
-# 🌐 Port pro webové UI
+# 🌐 Porty pro ComfyUI a JupyterLab
 EXPOSE 8188
+EXPOSE 8888
 
-# 🚀 Spuštění ComfyUI (RunPod-ready)
-CMD ["python3", "/UI/ComfyUI/main.py", "--listen", "0.0.0.0", "--port", "8188"]
+# 🚀 Spuštění ComfyUI a JupyterLab
+CMD ["bash", "-c", "\
+python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 & \
+jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser \
+"]
