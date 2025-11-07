@@ -22,8 +22,8 @@ RUN git clone https://github.com/twri/sdxl_prompt_styler /workspace/ComfyUI/cust
 
 # 🎞️ AnimateDiff motion module (ověřený link)
 RUN mkdir -p /workspace/models/motion_module && \
-    wget -O /workspace/models/motion_module/mm_sd15.ckpt \
-    https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt
+wget -O /workspace/models/motion_module/mm_sd15.ckpt https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt
+
 
 # 🧪 Kontrola existence main.py
 RUN test -f /workspace/ComfyUI/main.py || (echo "❌ main.py not found!" && exit 1)
