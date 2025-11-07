@@ -55,8 +55,8 @@ RUN ln -s /UI/ComfyUI /workspace/ComfyUI
 EXPOSE 8188
 EXPOSE 8888
 
-# 🚀 Spuštění ComfyUI + default workflow + JupyterLab
+# 🚀 Spuštění ComfyUI + default workflow + JupyterLab bez tokenu
 CMD ["bash", "-c", "\
 python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --load-workflow /UI/ComfyUI/workflows/default_workflow.json & \
-jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser \
+jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --NotebookApp.token='' \
 "]
