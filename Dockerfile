@@ -1,52 +1,49 @@
-# ⚙️ Base image
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# ⚙️ Základní image: CUDA 12.2 + Ubuntu 22.04
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
-# 📦 System packages
-RUN apt-get update && apt-get install -y \
-    git wget python3 python3-pip python3-venv \
-    ffmpeg libsm6 libxext6 libgl1-mesa-glx && \
-    rm -rf /var/lib/apt/lists/*
+# 🧱 Systémové balíčky
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git git-lfs python3 python3-pip python3-dev \
+    build-essential wget ffmpeg libsm6 libxext6 \
+ && git lfs install \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 📁 Instalace mimo /workspace (RunPod-safe)
 WORKDIR /UI
 
-# 🧠 Install ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
-    cd ComfyUI && pip install --upgrade pip && pip install -r requirements.txt
+# 🧠 Klon ComfyUI
+RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyUI
 
-# 🧩 Install custom nodes
-RUN mkdir -p /UI/ComfyUI/custom_nodes && \
-    git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager || true && \
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-HWStats.git /UI/ComfyUI/custom_nodes/ComfyUI-HWStats || true
+# 📦 Instalace Python závislostí
+WORKDIR /UI/ComfyUI
+RUN pip3 install --upgrade pip setuptools wheel \
+ && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
-# 🧠 HWStats dependencies + JupyterLab
-RUN pip install psutil GPUtil pynvml jupyterlab
+# 🧩 Instalace ComfyUI Manageru
+RUN mkdir -p /UI/ComfyUI/custom_nodes \
+ && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager
 
-# ⚡ Initialize ComfyUI once to register all nodes
-RUN python3 /UI/ComfyUI/main.py --dont-print-server --quick-test-for-ci || true
+# ✅ Kontrola main.py
+RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
 
-# 🧩 Create default workflow with HWStats node
-RUN mkdir -p /UI/ComfyUI/workflows && \
-    echo '{ \
-      "last_node_id": 1, \
-      "last_link_id": 0, \
-      "nodes": [ \
-        { \
-          "id": 1, \
-          "type": "HWStatsNode", \
-          "pos": [100, 100], \
-          "size": [200, 100], \
-          "flags": {}, \
-          "order": 1, \
-          "mode": 0 \
-        } \
-      ] \
-    }' > /UI/ComfyUI/workflows/hwstats.json
+# 🔗 Kompatibilita s RunPodem (RunPod hledá /workspace/ComfyUI)
+RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 
-# 🌐 Ports
-EXPOSE 8188 8888
+# 🌐 Instalace JupyterLab (bez tokenu)
+RUN pip install jupyterlab && \
+    mkdir -p /root/.jupyter && \
+    echo "c.ServerApp.token = ''" > /root/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.password = ''" >> /root/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.allow_origin = '*'" >> /root/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.ip = '0.0.0.0'" >> /root/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.open_browser = False" >> /root/.jupyter/jupyter_server_config.py && \
+    echo "c.ServerApp.port = 8888" >> /root/.jupyter/jupyter_server_config.py
 
-# 🚀 Launch both services
-CMD ["bash", "-c", "\
-python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --force-fp16 --auto-launch --no-upgrade-check & \
-jupyter lab --ip 0.0.0.0 --port 8888 --allow-root --NotebookApp.token='' --NotebookApp.password='' \
-"]
+# 🌐 Porty pro ComfyUI a JupyterLab
+EXPOSE 8188
+EXPOSE 8888
+
+# 🚀 Spuštění obou aplikací (ComfyUI + JupyterLab)
+CMD bash -c "\
+  jupyter lab --allow-root & \
+  python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188"
