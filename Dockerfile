@@ -1,7 +1,7 @@
 # ⚙️ Base image: CUDA 12.2 + Ubuntu 22.04
 FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
-# 🧱 Základní systémové balíčky
+# 🧱 Systémové balíčky
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     git-lfs \
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# 📁 Pracovní adresář (instalace mimo /workspace)
+# 📁 Instalace mimo /workspace (RunPod-safe)
 WORKDIR /UI
 
 # 🧠 Klon oficiálního ComfyUI repozitáře
@@ -41,5 +41,5 @@ RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 # 🌐 Port pro webové UI
 EXPOSE 8188
 
-# 🚀 Spuštění ComfyUI (RunPod kompatibilní)
-CMD ["python3", "/UI/ComfyUI/main.py", "--listen", "0.0.0.0", "--port", "8188", "--no-auto-launch"]
+# 🚀 Spuštění ComfyUI (RunPod-ready)
+CMD ["python3", "/UI/ComfyUI/main.py", "--listen", "0.0.0.0", "--port", "8188"]
