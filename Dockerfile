@@ -4,7 +4,7 @@ FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 # 🧱 Systémové balíčky
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git git-lfs python3 python3-pip python3-dev build-essential wget ffmpeg \
-    libsm6 libxext6 && \
+    libsm6 libxext6 ca-certificates && \
     git lfs install && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -19,10 +19,10 @@ WORKDIR /UI/ComfyUI
 RUN pip3 install --upgrade pip setuptools wheel \
  && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
-# 🧩 Instalace ComfyUI Manageru + HWStats
+# 🧩 Instalace ComfyUI Manageru + HWStats s fallbackem
 RUN mkdir -p /UI/ComfyUI/custom_nodes && \
-    git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager && \
-    git clone --depth=1 https://github.com/ltdrdata/ComfyUI-HWStats.git /UI/ComfyUI/custom_nodes/ComfyUI-HWStats
+    (git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager || echo "⚠️ ComfyUI-Manager repo nedostupné") && \
+    (git clone --depth=1 https://github.com/ltdrdata/ComfyUI-HWStats.git /UI/ComfyUI/custom_nodes/ComfyUI-HWStats || echo "⚠️ HWStats repo nedostupné")
 
 # ✅ Kontrola main.py
 RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
