@@ -12,7 +12,7 @@ RUN pip3 install -r requirements.txt
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 
 # 🎞️ AnimateDiff Evolved
-RUN git clone https://github.com/pythongosssss/ComfyUI-AnimateDiff-Evolved /workspace/ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved
+RUN git clone https://github.com/pythongosssss/ComfyUI-AnimateDiff /workspace/ComfyUI/custom_nodes/ComfyUI-AnimateDiff
 
 # 🎨 SDXL Prompt Styler
 RUN git clone https://github.com/melMass/ComfyUI-SDXLPromptStyler /workspace/ComfyUI/custom_nodes/ComfyUI-SDXLPromptStyler
