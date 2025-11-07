@@ -1,7 +1,7 @@
 # ⚙️ Base image: CUDA 12.2 + Ubuntu 22.04
 FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
-# 🧱 Systémové balíčky
+# 🧱 Systémové balíčky + JupyterLab + HW monitor knihovny
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     git-lfs \
@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
  && git lfs install \
+ && pip3 install --upgrade pip setuptools wheel \
+ && pip3 install jupyterlab psutil torch gpustat --prefer-binary \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -25,15 +27,11 @@ RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyU
 
 # 📦 Python závislosti ComfyUI
 WORKDIR /UI/ComfyUI
-RUN pip3 install --upgrade pip setuptools wheel
 RUN pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
 # 🧩 Instalace ComfyUI Manageru
 RUN mkdir -p /UI/ComfyUI/custom_nodes
 RUN git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager
-
-# 🛠️ Instalace JupyterLab a knihoven pro HW monitor
-RUN pip3 install jupyterlab psutil torch gpustat --prefer-binary
 
 # 🧩 Custom Node pro HWStats
 RUN mkdir -p /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats
