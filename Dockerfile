@@ -20,10 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 📁 Instalace mimo /workspace (RunPod-safe)
 WORKDIR /UI
 
-# 🧠 Klon oficiálního ComfyUI repozitáře
+# 🧠 Klon ComfyUI
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyUI
 
-# 📦 Instalace Python závislostí ComfyUI
+# 📦 Python závislosti
 WORKDIR /UI/ComfyUI
 RUN pip3 install --upgrade pip setuptools wheel \
  && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
@@ -35,23 +35,43 @@ RUN mkdir -p /UI/ComfyUI/custom_nodes \
 # 🛠️ Instalace JupyterLab a knihoven pro HW monitor
 RUN pip3 install jupyterlab psutil torch gpustat --prefer-binary
 
-# 🧩 Instalace Custom Node pro horní lištu (HWStats)
+# 🧩 Custom Node pro HWStats
 RUN mkdir -p /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats
-RUN echo 'from ComfyUI import Node\nimport psutil, gpustat, torch\n\nclass HWStatsNode(Node):\n    @classmethod\n    def INPUT_TYPES(cls):\n        return {}\n\n    @classmethod\n    def RETURN_TYPES(cls):\n        return ("STRING",)\n\n    @classmethod\n    def FUNCTION(cls, **kwargs):\n        cpu_percent = psutil.cpu_percent(interval=0.5)\n        ram_percent = psutil.virtual_memory().percent\n        if torch.cuda.is_available():\n            try:\n                gpus = gpustat.GPUStatCollection.new_query()\n                gpu_list = [f\"{gpu.index}:{gpu.utilization}%\" for gpu in gpus.gpus]\n                gpu_info = \", \".join(gpu_list)\n            except:\n                gpu_info = \"GPU: error\"\n        else:\n            gpu_info = \"GPU: none\"\n        status = f\"CPU: {cpu_percent}% | RAM: {ram_percent}% | {gpu_info}\"\n        return (status,)' > /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/HWStats.py
+RUN echo 'from ComfyUI import Node\nimport psutil, gpustat, torch\n\nclass HWStatsNode(Node):\n    @classmethod\n    def INPUT_TYPES(cls):\n        return {}\n\n    @classmethod\n    def RETURN_TYPES(cls):\n        return ("STRING",)\n\n    @classmethod\n    def FUNCTION(cls, **kwargs):\n        cpu_percent = psutil.cpu_percent(interval=0.5)\n        ram_percent = psutil.virtual_memory().percent\n        if torch.cuda.is_available():\n            try:\n                gpus = gpustat.GPUStatCollection.new_query()\n                gpu_list = [f"{gpu.index}:{gpu.utilization}%" for gpu in gpus.gpus]\n                gpu_info = ", ".join(gpu_list)\n            except:\n                gpu_info = "GPU: error"\n        else:\n            gpu_info = "GPU: none"\n        status = f"CPU: {cpu_percent}% | RAM: {ram_percent}% | {gpu_info}"\n        return (status,)' > /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/HWStats.py
 RUN touch /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/__init__.py
+
+# 📝 Vytvoření default workflow s HWStatsNode
+RUN mkdir -p /UI/ComfyUI/workflows
+RUN echo '{
+  "nodes": [
+    {
+      "type": "HWStatsNode",
+      "id": "hw1",
+      "outputs": ["status"]
+    },
+    {
+      "type": "Label",
+      "id": "label1",
+      "inputs": {"INPUT": "hw1.status"}
+    }
+  ],
+  "connections": [
+    {"from": "hw1.status", "to": "label1.INPUT"}
+  ]
+}' > /UI/ComfyUI/workflows/default_workflow.json
 
 # ✅ Kontrola main.py
 RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
 
-# 🔗 Kompatibilita s RunPodem
+# 🔗 RunPod symlink
 RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 
-# 🌐 Porty pro ComfyUI a JupyterLab
+# 🌐 Porty
 EXPOSE 8188
 EXPOSE 8888
 
-# 🚀 Spuštění ComfyUI a JupyterLab
+# 🚀 Spuštění ComfyUI + načtení default workflow + JupyterLab
 CMD ["bash", "-c", "\
-python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 & \
+python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --load-workflow /UI/ComfyUI/workflows/default_workflow.json & \
 jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser \
 "]
