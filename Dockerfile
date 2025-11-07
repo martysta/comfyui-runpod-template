@@ -1,35 +1,41 @@
+# ⚙️ Základní image s CUDA 12.2 a Ubuntu 22.04
 FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
-# 🧱 Základní balíčky
-RUN apt update && apt install -y \
+# 🧱 Instalace základních balíčků
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     python3 \
     python3-pip \
     wget \
     ffmpeg \
     libsm6 \
-    libxext6
+    libxext6 \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
-# 🧠 Instalace ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI /workspace/ComfyUI
+# 📁 Pracovní adresář
+WORKDIR /workspace
+
+# 🧠 Stažení oficiálního ComfyUI repozitáře
+RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+
+# ✅ Ověření, že main.py existuje po klonu
+RUN test -f /workspace/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen po klonu!" && ls -la /workspace/ComfyUI && exit 1)
+
+# 📦 Instalace Python závislostí
 WORKDIR /workspace/ComfyUI
-RUN pip3 install -r requirements.txt
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel \
+ && pip3 install --no-cache-dir -r requirements.txt
 
-# 🧩 Custom Nodes (ověřené repozitáře)
-RUN git clone https://github.com/Comfy-Org/ComfyUI-Manager /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
-RUN git clone https://github.com/SipherAGI/comfyui-animatediff /workspace/ComfyUI/custom_nodes/comfyui-animatediff
-RUN git clone https://github.com/twri/sdxl_prompt_styler /workspace/ComfyUI/custom_nodes/sdxl_prompt_styler
+# 🧩 Instalace ověřeného ComfyUI-Manageru
+RUN mkdir -p /workspace/ComfyUI/custom_nodes \
+ && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 
-# 🎞️ AnimateDiff motion module (ověřený link)
-RUN mkdir -p /workspace/models/motion_module && \
-wget -O /workspace/models/motion_module/mm_sd15.ckpt https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15.ckpt
+# 🔍 Závěrečná kontrola souboru main.py
+RUN test -f /workspace/ComfyUI/main.py || (echo "❌ main.py stále chybí!" && ls -la /workspace/ComfyUI && exit 1)
 
-
-# 🧪 Kontrola existence main.py
-RUN test -f /workspace/ComfyUI/main.py || (echo "❌ main.py not found!" && exit 1)
-
-# 🌐 Port pro web UI
+# 🌐 Expose port
 EXPOSE 8188
 
-# 🚀 Spuštění ComfyUI
-CMD ["python3", "/workspace/ComfyUI/main.py"]
+# 🚀 Spuštění ComfyUI (RunPod kompatibilní)
+CMD ["python3", "/workspace/ComfyUI/main.py", "--listen", "0.0.0.0", "--port", "8188", "--no-auto-launch"]
