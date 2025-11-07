@@ -25,12 +25,12 @@ RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyU
 
 # 📦 Python závislosti ComfyUI
 WORKDIR /UI/ComfyUI
-RUN pip3 install --upgrade pip setuptools wheel \
- && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
+RUN pip3 install --upgrade pip setuptools wheel
+RUN pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
 # 🧩 Instalace ComfyUI Manageru
-RUN mkdir -p /UI/ComfyUI/custom_nodes \
- && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager
+RUN mkdir -p /UI/ComfyUI/custom_nodes
+RUN git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager
 
 # 🛠️ Instalace JupyterLab a knihoven pro HW monitor
 RUN pip3 install jupyterlab psutil torch gpustat --prefer-binary
@@ -40,9 +40,9 @@ RUN mkdir -p /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats
 RUN echo 'from ComfyUI import Node\nimport psutil, gpustat, torch\n\nclass HWStatsNode(Node):\n    @classmethod\n    def INPUT_TYPES(cls):\n        return {}\n\n    @classmethod\n    def RETURN_TYPES(cls):\n        return ("STRING",)\n\n    @classmethod\n    def FUNCTION(cls, **kwargs):\n        cpu_percent = psutil.cpu_percent(interval=0.5)\n        ram_percent = psutil.virtual_memory().percent\n        if torch.cuda.is_available():\n            try:\n                gpus = gpustat.GPUStatCollection.new_query()\n                gpu_list = [f"{gpu.index}:{gpu.utilization}%" for gpu in gpus.gpus]\n                gpu_info = ", ".join(gpu_list)\n            except:\n                gpu_info = "GPU: error"\n        else:\n            gpu_info = "GPU: none"\n        status = f"CPU: {cpu_percent}% | RAM: {ram_percent}% | {gpu_info}"\n        return (status,)' > /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/HWStats.py
 RUN touch /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/__init__.py
 
-# 📝 Vytvoření default workflow s HWStatsNode
-RUN mkdir -p /UI/ComfyUI/workflows && \
-    cat << 'EOF' > /UI/ComfyUI/workflows/default_workflow.json
+# 📝 Vytvoření default workflow s HWStatsNode (samostatný RUN blok)
+RUN mkdir -p /UI/ComfyUI/workflows
+RUN cat << 'EOF' > /UI/ComfyUI/workflows/default_workflow.json
 {
   "nodes": [
     {
@@ -66,7 +66,8 @@ EOF
 RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
 
 # 🔗 RunPod symlink
-RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
+RUN mkdir -p /workspace
+RUN ln -s /UI/ComfyUI /workspace/ComfyUI
 
 # 🌐 Porty pro ComfyUI a JupyterLab
 EXPOSE 8188
