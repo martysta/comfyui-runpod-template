@@ -23,7 +23,7 @@ WORKDIR /UI
 # 🧠 Klon ComfyUI
 RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyUI
 
-# 📦 Python závislosti
+# 📦 Python závislosti ComfyUI
 WORKDIR /UI/ComfyUI
 RUN pip3 install --upgrade pip setuptools wheel \
  && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
@@ -41,8 +41,9 @@ RUN echo 'from ComfyUI import Node\nimport psutil, gpustat, torch\n\nclass HWSta
 RUN touch /UI/ComfyUI/custom_nodes/ComfyUI-HW-Stats/__init__.py
 
 # 📝 Vytvoření default workflow s HWStatsNode
-RUN mkdir -p /UI/ComfyUI/workflows
-RUN echo '{
+RUN mkdir -p /UI/ComfyUI/workflows && \
+    cat << 'EOF' > /UI/ComfyUI/workflows/default_workflow.json
+{
   "nodes": [
     {
       "type": "HWStatsNode",
@@ -58,7 +59,8 @@ RUN echo '{
   "connections": [
     {"from": "hw1.status", "to": "label1.INPUT"}
   ]
-}' > /UI/ComfyUI/workflows/default_workflow.json
+}
+EOF
 
 # ✅ Kontrola main.py
 RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1)
@@ -66,11 +68,11 @@ RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la 
 # 🔗 RunPod symlink
 RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 
-# 🌐 Porty
+# 🌐 Porty pro ComfyUI a JupyterLab
 EXPOSE 8188
 EXPOSE 8888
 
-# 🚀 Spuštění ComfyUI + načtení default workflow + JupyterLab
+# 🚀 Spuštění ComfyUI + default workflow + JupyterLab
 CMD ["bash", "-c", "\
 python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188 --load-workflow /UI/ComfyUI/workflows/default_workflow.json & \
 jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser \
