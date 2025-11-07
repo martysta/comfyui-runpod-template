@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  comfyui:
+    build: .
+    container_name: comfyui_hwstats
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+      - "8888:8888"
+    volumes:
+      - ./workspace:/UI/ComfyUI
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
