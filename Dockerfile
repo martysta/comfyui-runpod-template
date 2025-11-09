@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && git lfs install \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 📁 Instalace mimo /workspace (RunPod-safe)
+# 📁 Pracovní adresář mimo /workspace (RunPod-safe)
 WORKDIR /UI
 
 # 🧠 Klon ComfyUI
@@ -29,43 +29,13 @@ RUN test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la 
 # 🔗 Kompatibilita s RunPodem (RunPod hledá /workspace/ComfyUI)
 RUN mkdir -p /workspace && ln -s /UI/ComfyUI /workspace/ComfyUI
 
-# 📦 Přidání workflow a modelů (vlastní soubory můžeš doplnit lokálně)
+# 📦 Přidání workflow a modelů (volitelné, můžeš doplnit lokálně)
 COPY ./workflows /UI/ComfyUI/workflows
 COPY ./models /UI/ComfyUI/models
 
-# 🧱 Automatické stažení doporučených modelů (Flux, ControlNet, Upscaler, Face Detector)
-RUN mkdir -p /UI/ComfyUI/models/unet \
-    /UI/ComfyUI/models/clip \
-    /UI/ComfyUI/models/vae \
-    /UI/ComfyUI/models/controlnet \
-    /UI/ComfyUI/models/upscale \
-    /UI/ComfyUI/models/ultralytics/bbox && \
-
-    # UNet (Flux1 Dev)
-    wget -O /UI/ComfyUI/models/unet/flux1-dev-fp8.safetensors \
-      https://huggingface.co/lllyasviel/flux1_dev/resolve/main/flux1-dev-fp8.safetensors && \
-
-    # CLIP encodery
-    wget -O /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors \
-      https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors && \
-    wget -O /UI/ComfyUI/models/clip/clip_l.safetensors \
-      https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/clip_l.safetensors && \
-
-    # VAE
-    wget -O /UI/ComfyUI/models/vae/ae.safetensors \
-      https://huggingface.co/ffxvs/vae-flux/resolve/main/ae.safetensors && \
-
-    # ControlNet (InstantID)
-    wget -O /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors \
-      https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors && \
-
-    # Upscale
-    wget -O /UI/ComfyUI/models/upscale/4x-ClearRealityV1.pth \
-      https://huggingface.co/skbhadra/ClearRealityV1/resolve/main/4x-ClearRealityV1.pth && \
-
-    # Face detection (YOLOv8m)
-    wget -O /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt \
-      https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt
+# 📄 Přidání start.sh
+COPY start.sh /UI/start.sh
+RUN chmod +x /UI/start.sh
 
 # 🌐 Instalace JupyterLab (bez tokenu)
 RUN pip install jupyterlab && \
@@ -81,7 +51,5 @@ RUN pip install jupyterlab && \
 EXPOSE 8188
 EXPOSE 8888
 
-# 🚀 Spuštění obou aplikací (ComfyUI + JupyterLab)
-CMD bash -c "\
-  jupyter lab --allow-root & \
-  python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188"
+# 🚀 Spuštění start.sh (modely se stáhnou při startu)
+CMD ["/UI/start.sh"]
