@@ -15,53 +15,53 @@ mkdir -p /UI/ComfyUI/models/unet \
 # 2️⃣ Stažení modelů, pokud ještě nejsou
 # =========================
 
+download() {
+    local target="$1"
+    local url="$2"
+    if [ ! -f "$target" ]; then
+        echo "📥 Stahuji $(basename "$target")..."
+        wget --show-progress --progress=bar:force:noscroll -O "$target" "$url"
+        echo "✅ Hotovo: $(basename "$target")"
+    else
+        echo "✅ Už existuje: $(basename "$target")"
+    fi
+}
+
 # UNet (Flux1 Dev)
-if [ ! -f /UI/ComfyUI/models/unet/flux1-dev-fp8.safetensors ]; then
-    wget -O /UI/ComfyUI/models/unet/flux1-dev-fp8.safetensors \
-    https://huggingface.co/lllyasviel/flux1_dev/resolve/main/flux1-dev-fp8.safetensors
-fi
+download /UI/ComfyUI/models/unet/flux1-dev-fp8.safetensors \
+         https://huggingface.co/lllyasviel/flux1_dev/resolve/main/flux1-dev-fp8.safetensors
 
 # CLIP encodery
-if [ ! -f /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors ]; then
-    wget -O /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors \
-    https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors
-fi
+download /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors \
+         https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors
 
-if [ ! -f /UI/ComfyUI/models/clip/clip_l.safetensors ]; then
-    wget -O /UI/ComfyUI/models/clip/clip_l.safetensors \
-    https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/clip_l.safetensors
-fi
+download /UI/ComfyUI/models/clip/clip_l.safetensors \
+         https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/clip_l.safetensors
 
 # VAE
-if [ ! -f /UI/ComfyUI/models/vae/ae.safetensors ]; then
-    wget -O /UI/ComfyUI/models/vae/ae.safetensors \
-    https://huggingface.co/ffxvs/vae-flux/resolve/main/ae.safetensors
-fi
+download /UI/ComfyUI/models/vae/ae.safetensors \
+         https://huggingface.co/ffxvs/vae-flux/resolve/main/ae.safetensors
 
 # ControlNet (InstantID)
-if [ ! -f /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors ]; then
-    wget -O /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors \
-    https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors
-fi
+download /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors \
+         https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors
 
 # Upscale
-if [ ! -f /UI/ComfyUI/models/upscale/4x-ClearRealityV1.pth ]; then
-    wget -O /UI/ComfyUI/models/upscale/4x-ClearRealityV1.pth \
-    https://huggingface.co/skbhadra/ClearRealityV1/resolve/main/4x-ClearRealityV1.pth
-fi
+download /UI/ComfyUI/models/upscale/4x-ClearRealityV1.pth \
+         https://huggingface.co/skbhadra/ClearRealityV1/resolve/main/4x-ClearRealityV1.pth
 
 # Face detection (YOLOv8m)
-if [ ! -f /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt ]; then
-    wget -O /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt \
-    https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt
-fi
+download /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt \
+         https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt
 
 # =========================
 # 3️⃣ Spuštění JupyterLab
 # =========================
+echo "🚀 Spouštím JupyterLab..."
 jupyter lab --allow-root &
 
 # =========================
 # 4️⃣ Spuštění ComfyUI
 # =========================
+echo "🚀 Spouštím ComfyUI..."
 python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188
