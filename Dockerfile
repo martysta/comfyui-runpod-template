@@ -6,7 +6,7 @@ RUN echo "📦 Instalace systémových balíčků..." \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
     git git-lfs python3 python3-pip python3-dev \
-    build-essential wget ffmpeg libsm6 libxext6 \
+    build-essential wget ffmpeg libsm6 libxext6 curl \
  && git lfs install \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
@@ -16,8 +16,10 @@ RUN echo "📦 Instalace systémových balíčků..." \
 WORKDIR /workspace
 
 # 📄 Přidání start.sh
-COPY start.sh ./start.sh
+COPY ./start.sh ./start.sh
 RUN chmod +x ./start.sh \
+ && echo "📂 Obsah /workspace po COPY:" && ls -la /workspace \
+ && echo "📂 Obsah rootu buildu:" && ls -la / \
  && test -f ./start.sh || (echo "❌ start.sh nebyl zkopírován!" && exit 1) \
  && echo "✅ start.sh připraven"
 
