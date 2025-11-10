@@ -36,18 +36,21 @@ download /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors \
          https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors
 
 download /UI/ComfyUI/models/clip/clip_l.safetensors \
-         https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/clip_l.safetensors
+         https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors
 
 # VAE
 download /UI/ComfyUI/models/vae/ae.safetensors \
-         https://huggingface.co/ffxvs/vae-flux/resolve/main/ae.safetensors
+         https://huggingface.co/receptektas/black-forest-labs-ae_safetensors/resolve/main/ae.safetensors
 
 # ControlNet (InstantID)
 download /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors \
          https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors
 
+download /UI/ComfyUI/models/controlnet/flux_shakker_labs_union_pro-fp8_e4m3fn.safetensors \
+         https://huggingface.co/Kijai/flux-fp8/resolve/main/flux_shakker_labs_union_pro-fp8_e4m3fn.safetensors
+
 # Upscale
-download /UI/ComfyUI/models/upscale/4x-ClearRealityV1.pth \
+download /UI/ComfyUI/models/upscale_models/4x-ClearRealityV1.pth \
          https://huggingface.co/skbhadra/ClearRealityV1/resolve/main/4x-ClearRealityV1.pth
 
 # Face detection (YOLOv8m)
