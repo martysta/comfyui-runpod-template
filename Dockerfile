@@ -44,9 +44,13 @@ RUN echo "🔗 Vytváření symlinku pro RunPod..." \
  && ln -s /UI/ComfyUI /workspace/ComfyUI \
  && echo "✅ Symlink vytvořen"
 
-# 📦 Přidání workflow a modelů (volitelné)
+# 📦 Přidání workflow a modelů
 COPY ./workflows /UI/ComfyUI/workflows
 COPY ./models /UI/ComfyUI/models
+
+# 📄 Explicitní zahrnutí požadovaných workflow JSON souborů
+COPY ./workflows/ThinkDiffusion_Character_Consistency_Flux.json /UI/ComfyUI/workflows/ThinkDiffusion_Character_Consistency_Flux.json
+COPY ./workflows/default_workflow.json /UI/ComfyUI/workflows/default_workflow.json
 
 # 📄 Přidání start.sh
 COPY start.sh /UI/start.sh
