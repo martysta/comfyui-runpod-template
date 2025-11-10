@@ -15,12 +15,12 @@ RUN echo "📦 Instalace systémových balíčků..." \
 # 📁 Pracovní adresář
 WORKDIR /workspace
 
-# 🧠 Klon ComfyUI přímo do /workspace
+# 📥 Klonování ComfyUI do /workspace/ComfyUI
 RUN echo "📥 Klonování ComfyUI..." \
  && git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI \
  && echo "✅ ComfyUI klonováno"
 
-# 📦 Instalace Python závislostí
+# 🐍 Instalace Python závislostí
 WORKDIR /workspace/ComfyUI
 RUN echo "🐍 Instalace Python závislostí..." \
  && pip3 install --upgrade pip setuptools wheel \
@@ -33,7 +33,7 @@ RUN echo "🧩 Přidání ComfyUI Manageru..." \
  && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager \
  && echo "✅ ComfyUI Manager přidán"
 
-# ✅ Kontrola main.py
+# 🔍 Kontrola main.py
 RUN echo "🔍 Kontrola main.py..." \
  && test -f /workspace/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /workspace/ComfyUI && exit 1) \
  && echo "✅ main.py nalezen"
@@ -48,7 +48,9 @@ COPY ./workflows/default_workflow.json /workspace/ComfyUI/workflows/default_work
 
 # 📄 Přidání start.sh
 COPY start.sh /workspace/start.sh
-RUN chmod +x /workspace/start.sh
+RUN chmod +x /workspace/start.sh \
+ && test -f /workspace/start.sh || (echo "❌ start.sh nebyl zkopírován!" && exit 1) \
+ && echo "✅ start.sh připraven"
 
 # 🌐 Instalace JupyterLab (bez tokenu)
 RUN echo "🌐 Instalace JupyterLab..." \
@@ -67,4 +69,4 @@ EXPOSE 8188
 EXPOSE 8888
 
 # 🚀 Spuštění start.sh
-CMD ["/workspace/start.sh"]
+CMD ["bash", "/workspace/start.sh"]
