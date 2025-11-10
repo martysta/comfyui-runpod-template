@@ -15,6 +15,12 @@ RUN echo "📦 Instalace systémových balíčků..." \
 # 📁 Pracovní adresář
 WORKDIR /workspace
 
+# 📄 Přidání start.sh
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh \
+ && test -f ./start.sh || (echo "❌ start.sh nebyl zkopírován!" && exit 1) \
+ && echo "✅ start.sh připraven"
+
 # 📥 Klonování ComfyUI do /workspace/ComfyUI
 RUN echo "📥 Klonování ComfyUI..." \
  && git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI \
@@ -38,20 +44,6 @@ RUN echo "🔍 Kontrola main.py..." \
  && test -f /workspace/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /workspace/ComfyUI && exit 1) \
  && echo "✅ main.py nalezen"
 
-# 📦 Přidání workflow a modelů
-COPY ./workflows /workspace/ComfyUI/workflows
-COPY ./models /workspace/ComfyUI/models
-
-# 📄 Explicitní zahrnutí požadovaných workflow JSON souborů
-COPY ./workflows/ThinkDiffusion_Character_Consistency_Flux.json /workspace/ComfyUI/workflows/ThinkDiffusion_Character_Consistency_Flux.json
-COPY ./workflows/default_workflow.json /workspace/ComfyUI/workflows/default_workflow.json
-
-# 📄 Přidání start.sh
-COPY start.sh /workspace/start.sh
-RUN chmod +x /workspace/start.sh \
- && test -f /workspace/start.sh || (echo "❌ start.sh nebyl zkopírován!" && exit 1) \
- && echo "✅ start.sh připraven"
-
 # 🌐 Instalace JupyterLab (bez tokenu)
 RUN echo "🌐 Instalace JupyterLab..." \
  && pip install jupyterlab \
@@ -69,4 +61,4 @@ EXPOSE 8188
 EXPOSE 8888
 
 # 🚀 Spuštění start.sh
-CMD ["bash", "/workspace/start.sh"]
+CMD ["bash", "./start.sh"]
