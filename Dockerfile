@@ -6,30 +6,22 @@ RUN echo "📦 Instalace systémových balíčků..." \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
     git git-lfs python3 python3-pip python3-dev \
-    build-essential wget ffmpeg libsm6 libxext6 curl \
+    build-essential wget ffmpeg libsm6 libxext6 \
  && git lfs install \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
  && echo "✅ Systémové balíčky nainstalovány"
 
-# 📁 Pracovní adresář
-WORKDIR /workspace
+# 📁 Pracovní adresář mimo /workspace (RunPod-safe)
+WORKDIR /UI
 
-# 📄 Přidání start.sh
-COPY ./start.sh ./start.sh
-RUN chmod +x ./start.sh \
- && echo "📂 Obsah /workspace po COPY:" && ls -la /workspace \
- && echo "📂 Obsah rootu buildu:" && ls -la / \
- && test -f ./start.sh || (echo "❌ start.sh nebyl zkopírován!" && exit 1) \
- && echo "✅ start.sh připraven"
-
-# 📥 Klonování ComfyUI do /workspace/ComfyUI
+# 🧠 Klon ComfyUI
 RUN echo "📥 Klonování ComfyUI..." \
- && git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI \
+ && git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /UI/ComfyUI \
  && echo "✅ ComfyUI klonováno"
 
-# 🐍 Instalace Python závislostí
-WORKDIR /workspace/ComfyUI
+# 📦 Instalace Python závislostí
+WORKDIR /UI/ComfyUI
 RUN echo "🐍 Instalace Python závislostí..." \
  && pip3 install --upgrade pip setuptools wheel \
  && pip3 install --no-cache-dir -r requirements.txt --prefer-binary \
@@ -37,14 +29,32 @@ RUN echo "🐍 Instalace Python závislostí..." \
 
 # 🧩 Instalace ComfyUI Manageru
 RUN echo "🧩 Přidání ComfyUI Manageru..." \
- && mkdir -p /workspace/ComfyUI/custom_nodes \
- && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager \
+ && mkdir -p /UI/ComfyUI/custom_nodes \
+ && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager \
  && echo "✅ ComfyUI Manager přidán"
 
-# 🔍 Kontrola main.py
+# ✅ Kontrola main.py
 RUN echo "🔍 Kontrola main.py..." \
- && test -f /workspace/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /workspace/ComfyUI && exit 1) \
+ && test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1) \
  && echo "✅ main.py nalezen"
+
+# 🔗 Kompatibilita s RunPodem
+RUN echo "🔗 Vytváření symlinku pro RunPod..." \
+ && mkdir -p /workspace \
+ && ln -s /UI/ComfyUI /workspace/ComfyUI \
+ && echo "✅ Symlink vytvořen"
+
+# 📦 Přidání workflow a modelů
+COPY ./workflows /UI/ComfyUI/workflows
+COPY ./models /UI/ComfyUI/models
+
+# 📄 Explicitní zahrnutí požadovaných workflow JSON souborů
+COPY ./workflows/ThinkDiffusion_Character_Consistency_Flux.json /UI/ComfyUI/workflows/ThinkDiffusion_Character_Consistency_Flux.json
+COPY ./workflows/default_workflow.json /UI/ComfyUI/workflows/default_workflow.json
+
+# 📄 Přidání start.sh
+COPY start.sh /UI/start.sh
+RUN chmod +x /UI/start.sh
 
 # 🌐 Instalace JupyterLab (bez tokenu)
 RUN echo "🌐 Instalace JupyterLab..." \
@@ -63,4 +73,4 @@ EXPOSE 8188
 EXPOSE 8888
 
 # 🚀 Spuštění start.sh
-CMD ["bash", "./start.sh"]
+CMD ["/UI/start.sh"]
