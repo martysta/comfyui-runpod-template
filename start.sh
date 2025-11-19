@@ -58,13 +58,21 @@ download /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt \
          https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt
 
 # =========================
-# 3️⃣ Spuštění JupyterLab
+# 3️⃣ Nakopírování workflow JSONů
+# =========================
+echo "📂 Kopíruji workflow JSONy do uživatelského adresáře..."
+mkdir -p /UI/ComfyUI/user/default/workflows/
+cp -u /UI/ComfyUI/workflows/*.json /UI/ComfyUI/user/default/workflows/ || true
+echo "✅ Workflows připraveny"
+
+# =========================
+# 4️⃣ Spuštění JupyterLab
 # =========================
 echo "🚀 Spouštím JupyterLab..."
 jupyter lab --allow-root --notebook-dir=/UI &
 
 # =========================
-# 4️⃣ Spuštění ComfyUI
+# 5️⃣ Spuštění ComfyUI
 # =========================
 echo "🚀 Spouštím ComfyUI..."
 python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188
