@@ -1,78 +1,61 @@
 #!/bin/bash
 set -e
 
-# =========================
-# 1️⃣ Vytvoření adresářů pro modely
-# =========================
-mkdir -p /UI/ComfyUI/models/unet \
-         /UI/ComfyUI/models/clip \
-         /UI/ComfyUI/models/vae \
-         /UI/ComfyUI/models/controlnet \
-         /UI/ComfyUI/models/upscale \
-         /UI/ComfyUI/models/ultralytics/bbox
+MODELS_DIR="/workspace/ComfyUI/models"
+mkdir -p "$MODELS_DIR/diffusion_models" \
+         "$MODELS_DIR/text_encoders" \
+         "$MODELS_DIR/vae" \
+         "$MODELS_DIR/clip_vision"
 
-# =========================
-# 2️⃣ Stažení modelů, pokud ještě nejsou
-# =========================
-
-download() {
-    local target="$1"
-    local url="$2"
-    if [ ! -f "$target" ]; then
-        echo "📥 Stahuji $(basename "$target")..."
-        wget --show-progress --progress=bar:force:noscroll -O "$target" "$url"
-        echo "✅ Hotovo: $(basename "$target")"
-    else
-        echo "✅ Už existuje: $(basename "$target")"
-    fi
+download_if_missing() {
+  local dest="$1"
+  local url="$2"
+  if [ ! -f "$dest" ]; then
+    echo "📥 Stahuji: $(basename "$dest")"
+    wget -q --show-progress -O "$dest" "$url"
+    echo "✅ Hotovo: $(basename "$dest")"
+  else
+    echo "⏭️  Už existuje, přeskakuji: $(basename "$dest")"
+  fi
 }
 
-# UNet (Flux1 Dev)
-download /UI/ComfyUI/models/unet/flux1-dev-fp8.safetensors \
-         https://huggingface.co/lllyasviel/flux1_dev/resolve/main/flux1-dev-fp8.safetensors
+echo "🔍 Kontrola a stahování modelů pro InfiniteTalk / Wan2.1..."
 
-# CLIP encodery
-download /UI/ComfyUI/models/clip/t5xxl_fp8_e4m3fn.safetensors \
-         https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors
+# I2V diffusion model (obraz -> video)
+download_if_missing \
+  "$MODELS_DIR/diffusion_models/Wan2_1-I2V-14B-480p_fp8_e4m3fn_scaled_KJ.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/I2V/Wan2_1-I2V-14B-480p_fp8_e4m3fn_scaled_KJ.safetensors"
 
-download /UI/ComfyUI/models/clip/clip_l.safetensors \
-         https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors
+# InfiniteTalk model (lip-sync, single person)
+download_if_missing \
+  "$MODELS_DIR/diffusion_models/Wan2_1-InfiniteTalk-Single_fp8_e4m3fn_scaled_KJ.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/InfiniteTalk/Wan2_1-InfiniteTalk-Single_fp8_e4m3fn_scaled_KJ.safetensors"
+
+# Text encoder
+download_if_missing \
+  "$MODELS_DIR/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
 
 # VAE
-download /UI/ComfyUI/models/vae/ae.safetensors \
-         https://huggingface.co/receptektas/black-forest-labs-ae_safetensors/resolve/main/ae.safetensors
+download_if_missing \
+  "$MODELS_DIR/vae/Wan2_1_VAE_fp32.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_fp32.safetensors"
 
-# ControlNet (InstantID)
-download /UI/ComfyUI/models/controlnet/diffusion_pytorch_model.safetensors \
-         https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors
+# CLIP Vision
+download_if_missing \
+  "$MODELS_DIR/clip_vision/clip_vision_h.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
 
-download /UI/ComfyUI/models/controlnet/flux_shakker_labs_union_pro-fp8_e4m3fn.safetensors \
-         https://huggingface.co/Kijai/flux-fp8/resolve/main/flux_shakker_labs_union_pro-fp8_e4m3fn.safetensors
+echo "✅ Všechny modely připraveny"
 
-# Upscale
-download /UI/ComfyUI/models/upscale_models/4x-ClearRealityV1.pth \
-         https://huggingface.co/skbhadra/ClearRealityV1/resolve/main/4x-ClearRealityV1.pth
-
-# Face detection (YOLOv8m)
-download /UI/ComfyUI/models/ultralytics/bbox/face_yolov8m.pt \
-         https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt
-
-# =========================
-# 3️⃣ Nakopírování workflow JSONů
-# =========================
-echo "📂 Kopíruji workflow JSONy do uživatelského adresáře..."
-mkdir -p /UI/ComfyUI/user/default/workflows/
-cp -u /UI/ComfyUI/workflows/*.json /UI/ComfyUI/user/default/workflows/ || true
-echo "✅ Workflows připraveny"
-
-# =========================
-# 4️⃣ Spuštění JupyterLab
-# =========================
-echo "🚀 Spouštím JupyterLab..."
-jupyter lab --allow-root --notebook-dir=/UI &
-
-# =========================
-# 5️⃣ Spuštění ComfyUI
-# =========================
+# 🚀 Spuštění ComfyUI na pozadí
 echo "🚀 Spouštím ComfyUI..."
-python3 /UI/ComfyUI/main.py --listen 0.0.0.0 --port 8188
+cd /UI/ComfyUI
+python3 main.py --listen 0.0.0.0 --port 8188 &
+
+# 🚀 Spuštění JupyterLab na pozadí
+echo "🚀 Spouštím JupyterLab..."
+jupyter lab --allow-root &
+
+# Drž kontejner naživu, dokud běží procesy na pozadí
+wait
