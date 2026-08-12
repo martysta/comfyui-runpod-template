@@ -33,6 +33,18 @@ RUN echo "🧩 Přidání ComfyUI Manageru..." \
  && git clone --depth=1 https://github.com/Comfy-Org/ComfyUI-Manager.git /UI/ComfyUI/custom_nodes/ComfyUI-Manager \
  && echo "✅ ComfyUI Manager přidán"
 
+# 🎭 WanVideoWrapper (InfiniteTalk / Wan2.1-2.2 podpora)
+RUN echo "🎭 Instalace WanVideoWrapper..." \
+ && git clone --depth=1 https://github.com/kijai/ComfyUI-WanVideoWrapper.git /UI/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper \
+ && pip3 install --no-cache-dir -r /UI/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt --prefer-binary \
+ && echo "✅ WanVideoWrapper nainstalován"
+
+# 🎞️ VideoHelperSuite (nutné pro load/save video nody, běžně používané ve Wan workflow)
+RUN echo "🎞️ Instalace VideoHelperSuite..." \
+ && git clone --depth=1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git /UI/ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite \
+ && pip3 install --no-cache-dir -r /UI/ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite/requirements.txt --prefer-binary \
+ && echo "✅ VideoHelperSuite nainstalován"
+
 # ✅ Kontrola main.py
 RUN echo "🔍 Kontrola main.py..." \
  && test -f /UI/ComfyUI/main.py || (echo "❌ main.py nebyl nalezen!" && ls -la /UI/ComfyUI && exit 1) \
@@ -44,9 +56,8 @@ RUN echo "🔗 Vytváření symlinku pro RunPod..." \
  && ln -s /UI/ComfyUI /workspace/ComfyUI \
  && echo "✅ Symlink vytvořen"
 
-# 📦 Přidání workflow a modelů
+# 📦 Přidání workflow (modely se NEKOPÍRUJÍ do image – stahují se za běhu, viz start.sh)
 COPY ./workflows /UI/ComfyUI/workflows
-COPY ./models /UI/ComfyUI/models
 
 # 📄 Přidání start.sh
 COPY start.sh /UI/start.sh
