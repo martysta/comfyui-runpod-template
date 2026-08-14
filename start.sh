@@ -1,7 +1,37 @@
 #!/bin/bash
 set -e
 
+echo "===================================="
+echo "🚀 Start ComfyUI RunPod template"
+echo "===================================="
+
+# --- 0. Zajisti kompatibilní PyTorch podle CUDA driveru na tomto nodu ---
+echo "🔧 Kontroluji kompatibilitu CUDA driveru s PyTorch..."
+
+DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
+CUDA_MAX=$(nvidia-smi | grep -oP "CUDA Version: \K[0-9]+\.[0-9]+" | head -n1)
+echo "   Driver: $DRIVER_VERSION | Max podporovaná CUDA na tomto nodu: $CUDA_MAX"
+
+TORCH_OK=$(python3 -c "
+import torch
+try:
+    x = torch.zeros(1).cuda()
+    print('OK')
+except Exception:
+    print('FAIL')
+" 2>/dev/null)
+
+if [ "$TORCH_OK" != "OK" ]; then
+  echo "⚠️  PyTorch nefunguje s tímto driverem, přeinstalovávám na CUDA 12.1 build (širší kompatibilita)..."
+  pip3 uninstall -y torch torchvision torchaudio
+  pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+  echo "✅ PyTorch přeinstalován"
+else
+  echo "✅ PyTorch je s tímto driverem kompatibilní"
+fi
+
 # --- 1. Připrav strukturu na persistentním Network Volume ---
+echo "📁 Připravuji strukturu na /workspace..."
 MODELS_DIR="/workspace/models"
 mkdir -p "$MODELS_DIR/diffusion_models" "$MODELS_DIR/text_encoders" "$MODELS_DIR/vae" "$MODELS_DIR/loras"
 mkdir -p /workspace/output /workspace/input /workspace/user
@@ -11,6 +41,7 @@ mkdir -p /workspace/output /workspace/input /workspace/user
 [ -L /opt/ComfyUI/output ] || (rm -rf /opt/ComfyUI/output && ln -s /workspace/output /opt/ComfyUI/output)
 [ -L /opt/ComfyUI/input ] || (rm -rf /opt/ComfyUI/input && ln -s /workspace/input /opt/ComfyUI/input)
 [ -L /opt/ComfyUI/user ] || (rm -rf /opt/ComfyUI/user && ln -s /workspace/user /opt/ComfyUI/user)
+echo "✅ Symlinky OK"
 
 # --- 3. Stahování modelů s viditelným progresem ---
 download_if_missing() {
@@ -47,5 +78,8 @@ echo "✅ Základní modely připraveny"
 echo "ℹ️  LoRA soubory (SVI v2 Pro, lightx2v 4step) doinstaluj přes LoRA Manager panel v UI po startu"
 
 # --- 4. Spusť ComfyUI z /opt (image), ne z /workspace ---
+echo "===================================="
+echo "🎬 Spouštím ComfyUI..."
+echo "===================================="
 cd /opt/ComfyUI
 python3 main.py --listen 0.0.0.0 --port 8188 --enable-cors-header
