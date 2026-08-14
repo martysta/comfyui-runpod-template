@@ -43,6 +43,28 @@ mkdir -p /workspace/output /workspace/input /workspace/user
 [ -L /opt/ComfyUI/user ] || (rm -rf /opt/ComfyUI/user && ln -s /workspace/user /opt/ComfyUI/user)
 echo "✅ Symlinky OK"
 
+# --- 2b. Vynuť angličtinu jako výchozí jazyk (jen když nastavení ještě neexistuje) ---
+SETTINGS_FILE="/workspace/user/default/comfy.settings.json"
+mkdir -p "$(dirname "$SETTINGS_FILE")"
+if [ ! -f "$SETTINGS_FILE" ]; then
+  echo "🌐 Nastavuji výchozí jazyk na angličtinu..."
+  echo '{"Comfy.Locale": "en"}' > "$SETTINGS_FILE"
+else
+  echo "⏭️ Nastavení uživatele už existuje, jazyk neměním"
+fi
+
+# --- 2c. Zkopíruj všechny WanVideoWrapper example workflows (jednou, do podsložky) ---
+EXAMPLES_SRC="/opt/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/example_workflows"
+EXAMPLES_DST="/workspace/user/default/workflows/wanvideo_examples"
+if [ -d "$EXAMPLES_SRC" ] && [ ! -d "$EXAMPLES_DST" ]; then
+  echo "📋 Kopíruji všechny WanVideoWrapper example workflows..."
+  mkdir -p "$EXAMPLES_DST"
+  cp "$EXAMPLES_SRC"/*.json "$EXAMPLES_DST"/ 2>/dev/null
+  echo "✅ Zkopírováno $(ls "$EXAMPLES_DST" | wc -l) workflow souborů"
+else
+  echo "⏭️ Example workflows už zkopírované (nebo zdroj neexistuje), přeskakuji"
+fi
+
 # --- 3. Stahování modelů s viditelným progresem ---
 download_if_missing() {
   local dest="$1"
@@ -73,8 +95,10 @@ download_if_missing "$MODELS_DIR/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safete
   "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
 download_if_missing "$MODELS_DIR/vae/wan_2.1_vae.safetensors" \
   "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors"
+download_if_missing "$MODELS_DIR/diffusion_models/Wan2_1-InfiniteTalk-Single_fp8_e4m3fn_scaled_KJ.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/InfiniteTalk/Wan2_1-InfiniteTalk-Single_fp8_e4m3fn_scaled_KJ.safetensors"
 
-echo "✅ Základní modely připraveny"
+echo "✅ Základní modely připraveny (včetně InfiniteTalk Single)"
 echo "ℹ️  LoRA soubory (SVI v2 Pro, lightx2v 4step) doinstaluj přes LoRA Manager panel v UI po startu"
 
 # --- 4. Spusť ComfyUI z /opt (image), ne z /workspace ---
