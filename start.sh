@@ -5,31 +5,6 @@ echo "===================================="
 echo "🚀 Start ComfyUI RunPod template"
 echo "===================================="
 
-# --- 0. Zajisti kompatibilní PyTorch podle CUDA driveru na tomto nodu ---
-echo "🔧 Kontroluji kompatibilitu CUDA driveru s PyTorch..."
-
-DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
-CUDA_MAX=$(nvidia-smi | grep -oP "CUDA Version: \K[0-9]+\.[0-9]+" | head -n1)
-echo "   Driver: $DRIVER_VERSION | Max podporovaná CUDA na tomto nodu: $CUDA_MAX"
-
-TORCH_OK=$(python3 -c "
-import torch
-try:
-    x = torch.zeros(1).cuda()
-    print('OK')
-except Exception:
-    print('FAIL')
-" 2>/dev/null)
-
-if [ "$TORCH_OK" != "OK" ]; then
-  echo "⚠️  PyTorch nefunguje s tímto driverem, přeinstalovávám na CUDA 12.1 build (širší kompatibilita)..."
-  pip3 uninstall -y torch torchvision torchaudio
-  pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-  echo "✅ PyTorch přeinstalován"
-else
-  echo "✅ PyTorch je s tímto driverem kompatibilní"
-fi
-
 # --- 1. Připrav strukturu na persistentním Network Volume ---
 echo "📁 Připravuji strukturu na /workspace..."
 MODELS_DIR="/workspace/models"
@@ -65,19 +40,19 @@ else
   echo "⏭️ Example workflows už zkopírované (nebo zdroj neexistuje), přeskakuji"
 fi
 
-# --- 3. Stahování modelů s viditelným progresem ---
+# --- 3. Stahování modelů s viditelným progresem (opraveno pro RunPod Logs) ---
 download_if_missing() {
   local dest="$1"
   local url="$2"
   if [ ! -f "$dest" ]; then
     echo "📥 Stahuji: $(basename "$dest")"
-    wget --progress=dot:giga -O "$dest" "$url" 2>&1 | \
-      grep --line-buffered -o "[0-9]\+%" | \
-      while read -r pct; do printf "\r   ...%s" "$pct"; done
+    stdbuf -oL -eL wget --progress=dot:giga -O "$dest" "$url" 2>&1 | \
+      stdbuf -oL grep --line-buffered -o "[0-9]\+%" | \
+      awk '{ p=$1+0; if (p >= last+10 || p == 100) { print "   ..." p "%"; last=p } }'
     if [ -f "$dest" ] && [ -s "$dest" ]; then
-      echo -e "\n✅ Hotovo: $(basename "$dest") ($(du -h "$dest" | cut -f1))"
+      echo "✅ Hotovo: $(basename "$dest") ($(du -h "$dest" | cut -f1))"
     else
-      echo -e "\n⚠️ CHYBA při stahování $(basename "$dest")"
+      echo "⚠️ CHYBA při stahování $(basename "$dest")"
       rm -f "$dest"
       exit 1
     fi
@@ -101,9 +76,91 @@ download_if_missing "$MODELS_DIR/diffusion_models/Wan2_1-InfiniteTalk-Single_fp8
 echo "✅ Základní modely připraveny (včetně InfiniteTalk Single)"
 echo "ℹ️  LoRA soubory (SVI v2 Pro, lightx2v 4step) doinstaluj přes LoRA Manager panel v UI po startu"
 
-# --- 4. Spusť ComfyUI z /opt (image), ne z /workspace ---
-echo "===================================="
-echo "🎬 Spouštím ComfyUI..."
-echo "===================================="
-cd /opt/ComfyUI
-python3 main.py --listen 0.0.0.0 --port 8188 --enable-cors-header
+# --- 4. Self-healing spuštění ComfyUI ---
+set +e   # od teď řešíme chyby sami, ne aby set -e ukončil skript napůl cesty
+
+LOG_FILE="/tmp/comfyui_start.log"
+MAX_ATTEMPTS=4
+ATTEMPT=1
+
+apply_known_fixes() {
+  local log="$1"
+
+  # comfy_kitchen <-> torch nekompatibilita (list[int] custom-op schema chyba)
+  if grep -q "kernel_size has unsupported type list\[int\]" "$log" && grep -q "comfy_kitchen" "$log"; then
+    echo "🔧 Rozpoznána chyba: comfy_kitchen <-> torch nekompatibilita. Opravuji (downgrade comfy_kitchen)..."
+    pip3 install --no-cache-dir "comfy_kitchen==0.2.27"
+    return $?
+  fi
+
+  # Starý driver vs. torch build (CUDA verze na nodu je nižší než torch čeká)
+  if grep -qi "NVIDIA driver on your system is too old" "$log"; then
+    echo "🔧 Rozpoznána chyba: starý driver vs. torch build. Přeinstalovávám torch (2.6.0, cu121)..."
+    pip3 uninstall -y torch torchvision torchaudio
+    pip3 install --no-cache-dir torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    return $?
+  fi
+
+  # Chybějící Python modul
+  if grep -qi "No module named" "$log"; then
+    local missing_pkg
+    missing_pkg=$(grep -oP "No module named '\K[^']+" "$log" | head -n1)
+    if [ -n "$missing_pkg" ]; then
+      echo "🔧 Rozpoznána chyba: chybějící modul '$missing_pkg'. Instaluji..."
+      pip3 install --no-cache-dir "$missing_pkg"
+      return $?
+    fi
+    return 1
+  fi
+
+  echo "❓ Neznámá chyba, žádná automatická oprava k dispozici."
+  return 1
+}
+
+while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+  echo "===================================="
+  echo "🎬 Spouštím ComfyUI (pokus $ATTEMPT/$MAX_ATTEMPTS)..."
+  echo "===================================="
+
+  cd /opt/ComfyUI
+  > "$LOG_FILE"
+  stdbuf -oL -eL python3 main.py --listen 0.0.0.0 --port 8188 --enable-cors-header 2>&1 | tee "$LOG_FILE" &
+  PY_PID=$!
+
+  # Sleduj prvních ~60s, jestli proces žije a port naběhl
+  SUCCESS=0
+  for i in $(seq 1 30); do
+    if ! kill -0 $PY_PID 2>/dev/null; then
+      break   # proces spadl
+    fi
+    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8188/ 2>/dev/null | grep -q "200"; then
+      SUCCESS=1
+      break
+    fi
+    sleep 2
+  done
+
+  if [ $SUCCESS -eq 1 ]; then
+    echo "✅ ComfyUI úspěšně naběhlo, přebírám popředí procesu."
+    wait $PY_PID
+    exit $?
+  fi
+
+  echo "❌ ComfyUI nenaběhlo / spadlo. Analyzuji log..."
+  kill $PY_PID 2>/dev/null
+  wait $PY_PID 2>/dev/null
+
+  if apply_known_fixes "$LOG_FILE"; then
+    echo "🔁 Oprava aplikována, zkouším znovu..."
+  else
+    echo "🛑 Automatická oprava se nezdařila nebo chyba není rozpoznaná."
+    echo "---- Posledních 40 řádků logu: ----"
+    tail -n 40 "$LOG_FILE"
+    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+      echo "🛑 Dosažen maximální počet pokusů ($MAX_ATTEMPTS). Nechávám pod běžet přes 'sleep infinity' pro ruční debug."
+      sleep infinity
+    fi
+  fi
+
+  ATTEMPT=$((ATTEMPT+1))
+done
