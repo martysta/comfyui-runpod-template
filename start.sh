@@ -77,35 +77,43 @@ echo "✅ Základní modely připraveny (včetně InfiniteTalk Single)"
 echo "ℹ️  LoRA soubory (SVI v2 Pro, lightx2v 4step) doinstaluj přes LoRA Manager panel v UI po startu"
 
 # --- 4. Self-healing spuštění ComfyUI ---
-set +e   # od teď řešíme chyby sami, ne aby set -e ukončil skript napůl cesty
+set +e
 
 LOG_FILE="/tmp/comfyui_start.log"
 MAX_ATTEMPTS=4
 ATTEMPT=1
+HEALTHCHECK_SECONDS=300   # 5 min, kvůli první instalaci závislostí
 
 apply_known_fixes() {
   local log="$1"
 
   # comfy_kitchen <-> torch nekompatibilita (list[int] custom-op schema chyba)
   if grep -q "kernel_size has unsupported type list\[int\]" "$log" && grep -q "comfy_kitchen" "$log"; then
-    echo "🔧 Rozpoznána chyba: comfy_kitchen <-> torch nekompatibilita. Opravuji (downgrade comfy_kitchen)..."
+    echo "🔧 Rozpoznána chyba: comfy_kitchen <-> torch nekompatibilita. Downgrade comfy_kitchen..."
     pip3 install --no-cache-dir "comfy_kitchen==0.2.27"
     return $?
   fi
 
-  # Starý driver vs. torch build (CUDA verze na nodu je nižší než torch čeká)
+  # Starý driver vs. torch build
   if grep -qi "NVIDIA driver on your system is too old" "$log"; then
-    echo "🔧 Rozpoznána chyba: starý driver vs. torch build. Přeinstalovávám torch (2.6.0, cu121)..."
+    echo "🔧 Rozpoznána chyba: starý driver. Přeinstalovávám torch 2.6.0 (cu121)..."
     pip3 uninstall -y torch torchvision torchaudio
     pip3 install --no-cache-dir torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
     return $?
   fi
 
-  # Chybějící Python modul
+  # Chybějící/rozbitý torch – VŽDY pinovaná verze s CUDA indexem, nikdy "naslepo" latest
+  if grep -qi "PyTorch is not installed" "$log" || grep -qi "No module named 'torch'" "$log"; then
+    echo "🔧 Rozpoznána chyba: chybí torch. Instaluji pinovanou verzi (2.6.0, cu121)..."
+    pip3 install --no-cache-dir torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    return $?
+  fi
+
+  # Jiný chybějící Python modul (ne torch)
   if grep -qi "No module named" "$log"; then
     local missing_pkg
     missing_pkg=$(grep -oP "No module named '\K[^']+" "$log" | head -n1)
-    if [ -n "$missing_pkg" ]; then
+    if [ -n "$missing_pkg" ] && [ "$missing_pkg" != "torch" ]; then
       echo "🔧 Rozpoznána chyba: chybějící modul '$missing_pkg'. Instaluji..."
       pip3 install --no-cache-dir "$missing_pkg"
       return $?
@@ -122,14 +130,23 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
   echo "🎬 Spouštím ComfyUI (pokus $ATTEMPT/$MAX_ATTEMPTS)..."
   echo "===================================="
 
+  # Pojistka: ukonči případný sirotčí proces ze zabitého předchozího pokusu
+  pkill -9 -f "python3 main.py" 2>/dev/null
+  sleep 2
+
   cd /opt/ComfyUI
   > "$LOG_FILE"
-  stdbuf -oL -eL python3 main.py --listen 0.0.0.0 --port 8188 --enable-cors-header 2>&1 | tee "$LOG_FILE" &
-  PY_PID=$!
 
-  # Sleduj prvních ~60s, jestli proces žije a port naběhl
+  # KLÍČOVÉ: spouštíme python3 přímo na pozadí (ne přes | tee &),
+  # aby $! ukazoval na skutečný PID ComfyUI, ne na tee
+  stdbuf -oL -eL python3 main.py --listen 0.0.0.0 --port 8188 --enable-cors-header > "$LOG_FILE" 2>&1 &
+  PY_PID=$!
+  # Paralelně streamujeme log na konzoli (RunPod Logs)
+  tail -f "$LOG_FILE" &
+  TAIL_PID=$!
+
   SUCCESS=0
-  for i in $(seq 1 30); do
+  for i in $(seq 1 $((HEALTHCHECK_SECONDS / 2))); do
     if ! kill -0 $PY_PID 2>/dev/null; then
       break   # proces spadl
     fi
@@ -140,6 +157,8 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
     sleep 2
   done
 
+  kill $TAIL_PID 2>/dev/null
+
   if [ $SUCCESS -eq 1 ]; then
     echo "✅ ComfyUI úspěšně naběhlo, přebírám popředí procesu."
     wait $PY_PID
@@ -147,7 +166,7 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
   fi
 
   echo "❌ ComfyUI nenaběhlo / spadlo. Analyzuji log..."
-  kill $PY_PID 2>/dev/null
+  kill -9 $PY_PID 2>/dev/null
   wait $PY_PID 2>/dev/null
 
   if apply_known_fixes "$LOG_FILE"; then
