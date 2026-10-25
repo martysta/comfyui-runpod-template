@@ -21,6 +21,8 @@ Při vytváření podu nastav filtr CUDA verze na 13.0. Na starším driveru se 
 Používej oficiální šablony z menu Templates v ComfyUI:
 - **Wan 2.2 14B Image to Video** – záběry klipu
 - **Wan2.1 InfiniteTalk** – lip sync (přepni režim na `single_speaker`)
+- **Qwen-Image 2512** – výchozí obrázky (text → obrázek)
+- **Qwen-Image-Edit 2511** – obrázky záběrů s referencí postavy
 
 Všechny potřebné modely pro obě šablony stahuje `start.sh`.
 

@@ -124,6 +124,23 @@ download_if_missing "$MODELS_DIR/loras/lightx2v_I2V_14B_480p_cfg_step_distill_ra
 
 echo "✅ Modely pro šablony Wan 2.2 I2V a InfiniteTalk připraveny"
 
+# --- 3c. Obrázky: Qwen-Image-2512 (text → obrázek) a Qwen-Image-Edit-2511 (úprava s referencí postavy) ---
+# Obě verze jsou pod licencí Apache 2.0 (pozor: novější Qwen-Image-2.1 má nekomerční licenci, proto se nepoužívá)
+echo "🔍 Stahuji modely pro obrázky (Qwen-Image)..."
+download_if_missing "$MODELS_DIR/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors" \
+  "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"
+download_if_missing "$MODELS_DIR/vae/qwen_image_vae.safetensors" \
+  "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
+download_if_missing "$MODELS_DIR/diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors" \
+  "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors"
+download_if_missing "$MODELS_DIR/loras/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors" \
+  "https://huggingface.co/lightx2v/Qwen-Image-2512-Lightning/resolve/main/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors"
+download_if_missing "$MODELS_DIR/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors" \
+  "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors"
+download_if_missing "$MODELS_DIR/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors" \
+  "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+echo "✅ Modely pro obrázky připraveny"
+
 # --- 4. Self-healing spuštění ComfyUI ---
 set +e
 
