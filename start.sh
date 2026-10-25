@@ -15,6 +15,16 @@ if [ -n "$DRIVER_MAJOR" ] && [ "$DRIVER_MAJOR" -lt 580 ] 2>/dev/null; then
 fi
 echo "✅ NVIDIA driver: ${DRIVER_VERSION:-neznámý}"
 
+# --- 0b. Počkej na síť: na RunPodu DNS při startu kontejneru pár sekund nefunguje ---
+for i in $(seq 1 60); do
+  if getent hosts huggingface.co >/dev/null 2>&1; then
+    echo "✅ Síť připravena (po $((i*2-2)) s)"
+    break
+  fi
+  echo "⏳ Čekám na síť ($i/60)..."
+  sleep 2
+done
+
 # --- 1. Připrav strukturu na persistentním Network Volume ---
 echo "📁 Připravuji strukturu na /workspace..."
 MODELS_DIR="/workspace/models"
@@ -57,14 +67,19 @@ download_if_missing() {
   local url="$2"
   if [ ! -f "$dest" ]; then
     echo "📥 Stahuji: $(basename "$dest")"
-    stdbuf -oL -eL wget --progress=dot:giga -O "$dest" "$url" 2>&1 | \
+    local wlog="/tmp/wget_$(basename "$dest").log"
+    stdbuf -oL -eL wget --tries=5 --waitretry=5 --retry-connrefused --progress=dot:giga \
+      -O "$dest.part" "$url" 2>&1 | tee "$wlog" | \
       stdbuf -oL grep --line-buffered -o "[0-9]\+%" | \
       awk '{ p=$1+0; if (p >= last+10 || p == 100) { print "   ..." p "%"; last=p } }'
-    if [ -f "$dest" ] && [ -s "$dest" ]; then
+    local wget_status=${PIPESTATUS[0]}
+    if [ "$wget_status" -eq 0 ] && [ -s "$dest.part" ]; then
+      mv "$dest.part" "$dest"
       echo "✅ Hotovo: $(basename "$dest") ($(du -h "$dest" | cut -f1))"
     else
-      echo "⚠️ CHYBA při stahování $(basename "$dest")"
-      rm -f "$dest"
+      echo "⚠️ CHYBA při stahování $(basename "$dest"), výpis wget:"
+      grep -vE "^ *[0-9]+[KMG] " "$wlog" | tail -n 15
+      rm -f "$dest.part"
       exit 1
     fi
   else
