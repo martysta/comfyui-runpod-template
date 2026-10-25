@@ -1,15 +1,23 @@
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git git-lfs python3 python3-pip python3-dev \
-    build-essential wget ffmpeg libsm6 libxext6 \
+    build-essential wget curl ffmpeg libsm6 libxext6 \
     && git lfs install \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+# curl je nutný: start.sh přes něj kontroluje, jestli ComfyUI naběhlo
+
+# Pevné verze: ComfyUI release + torch s CUDA 13.0 (ComfyUI ho vyžaduje pro RTX 20xx a novější).
+# Constraints soubor zajistí, že žádný custom node ani pozdější pip install torch nepřepíše.
+ARG COMFYUI_VERSION=v0.42.5
+ENV PIP_CONSTRAINT=/opt/constraints.txt
+RUN printf "torch==2.14.1\ntorchvision==0.29.1\n" > /opt/constraints.txt
 
 # ZMĚNA: instalujeme do /opt/ComfyUI, ne do /workspace
 WORKDIR /opt
-RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI
+RUN git clone --depth=1 --branch ${COMFYUI_VERSION} https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI
 WORKDIR /opt/ComfyUI
 RUN pip3 install --upgrade pip setuptools wheel \
+    && pip3 install --no-cache-dir torch==2.14.1 torchvision==0.29.1 \
     && pip3 install --no-cache-dir -r requirements.txt --prefer-binary
 
 RUN mkdir -p custom_nodes \

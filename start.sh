@@ -5,10 +5,21 @@ echo "===================================="
 echo "🚀 Start ComfyUI RunPod template"
 echo "===================================="
 
+# --- 0. Kontrola driveru: torch v image je postavený na CUDA 13.0 → potřebuje driver 580+ ---
+DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
+DRIVER_MAJOR=${DRIVER_VERSION%%.*}
+if [ -n "$DRIVER_MAJOR" ] && [ "$DRIVER_MAJOR" -lt 580 ] 2>/dev/null; then
+  echo "🛑 NVIDIA driver $DRIVER_VERSION je příliš starý (potřeba 580+ kvůli CUDA 13.0)."
+  echo "   Smaž tento pod a vytvoř nový s filtrem CUDA verze 13.0."
+  sleep infinity
+fi
+echo "✅ NVIDIA driver: ${DRIVER_VERSION:-neznámý}"
+
 # --- 1. Připrav strukturu na persistentním Network Volume ---
 echo "📁 Připravuji strukturu na /workspace..."
 MODELS_DIR="/workspace/models"
-mkdir -p "$MODELS_DIR/diffusion_models" "$MODELS_DIR/text_encoders" "$MODELS_DIR/vae" "$MODELS_DIR/loras"
+mkdir -p "$MODELS_DIR/diffusion_models" "$MODELS_DIR/text_encoders" "$MODELS_DIR/vae" "$MODELS_DIR/loras" \
+         "$MODELS_DIR/model_patches" "$MODELS_DIR/audio_encoders"
 mkdir -p /workspace/output /workspace/input /workspace/user
 
 # --- 2. Symlinky z /opt/ComfyUI do volume (jen když ještě nejsou) ---
@@ -74,7 +85,29 @@ download_if_missing "$MODELS_DIR/diffusion_models/Wan2_1-InfiniteTalk-Single_fp8
   "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/InfiniteTalk/Wan2_1-InfiniteTalk-Single_fp8_e4m3fn_scaled_KJ.safetensors"
 
 echo "✅ Základní modely připraveny (včetně InfiniteTalk Single)"
-echo "ℹ️  LoRA soubory (SVI v2 Pro, lightx2v 4step) doinstaluj přes LoRA Manager panel v UI po startu"
+
+# --- 3b. Modely pro oficiální ComfyUI šablony (Templates menu) ---
+# Wan 2.2 14B Image to Video: 4krokové lightx2v LoRA (high + low noise)
+echo "🔍 Stahuji LoRA pro Wan 2.2 I2V (4 kroky)..."
+download_if_missing "$MODELS_DIR/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors"
+download_if_missing "$MODELS_DIR/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors"
+
+# Wan 2.1 InfiniteTalk (nativní nody): základní I2V 480p model, InfiniteTalk patch, wav2vec2, VAE, lightx2v LoRA
+echo "🔍 Stahuji modely pro InfiniteTalk (lip sync)..."
+download_if_missing "$MODELS_DIR/diffusion_models/Wan2_1-I2V-14B-480p_fp8_e4m3fn_scaled_KJ.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/I2V/Wan2_1-I2V-14B-480p_fp8_e4m3fn_scaled_KJ.safetensors"
+download_if_missing "$MODELS_DIR/model_patches/wan2.1_infiniteTalk_multi_fp16.safetensors" \
+  "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/model_patches/wan2.1_infiniteTalk_multi_fp16.safetensors"
+download_if_missing "$MODELS_DIR/audio_encoders/wav2vec2-chinese-base_fp16.safetensors" \
+  "https://huggingface.co/Kijai/wav2vec2_safetensors/resolve/main/wav2vec2-chinese-base_fp16.safetensors"
+download_if_missing "$MODELS_DIR/vae/Wan2_1_VAE_bf16.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
+download_if_missing "$MODELS_DIR/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" \
+  "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+
+echo "✅ Modely pro šablony Wan 2.2 I2V a InfiniteTalk připraveny"
 
 # --- 4. Self-healing spuštění ComfyUI ---
 set +e
@@ -87,26 +120,12 @@ HEALTHCHECK_SECONDS=300   # 5 min, kvůli první instalaci závislostí
 apply_known_fixes() {
   local log="$1"
 
-  # comfy_kitchen <-> torch nekompatibilita (list[int] custom-op schema chyba)
-  if grep -q "kernel_size has unsupported type list\[int\]" "$log" && grep -q "comfy_kitchen" "$log"; then
-    echo "🔧 Rozpoznána chyba: comfy_kitchen <-> torch nekompatibilita. Downgrade comfy_kitchen..."
-    pip3 install --no-cache-dir "comfy_kitchen==0.2.27"
-    return $?
-  fi
-
-  # Starý driver vs. torch build
+  # Starý driver: torch se NEpřeinstalovává (starší torch ComfyUI nepodporuje a rozbije comfy_kitchen).
+  # Řešení je pod na stroji s novějším driverem.
   if grep -qi "NVIDIA driver on your system is too old" "$log"; then
-    echo "🔧 Rozpoznána chyba: starý driver. Přeinstalovávám torch 2.6.0 (cu121)..."
-    pip3 uninstall -y torch torchvision torchaudio
-    pip3 install --no-cache-dir torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-    return $?
-  fi
-
-  # Chybějící/rozbitý torch – VŽDY pinovaná verze s CUDA indexem, nikdy "naslepo" latest
-  if grep -qi "PyTorch is not installed" "$log" || grep -qi "No module named 'torch'" "$log"; then
-    echo "🔧 Rozpoznána chyba: chybí torch. Instaluji pinovanou verzi (2.6.0, cu121)..."
-    pip3 install --no-cache-dir torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-    return $?
+    echo "🛑 Driver na tomto stroji je pro torch s CUDA 13.0 příliš starý."
+    echo "   Smaž pod a vytvoř nový s filtrem CUDA verze 13.0 (driver 580 a vyšší)."
+    return 1
   fi
 
   # Jiný chybějící Python modul (ne torch)
