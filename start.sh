@@ -57,6 +57,7 @@ touch "$AITK_DATA/aitk_db.db"
 # Fronta: konfigurace *.yaml nahraná do /workspace/input/aitk_jobs (např. přes ComfyUI /upload/image)
 # se spustí jedna po druhé; log jde do /workspace/output/aitk_logs, kde je čitelný přes ComfyUI /view.
 aitk_queue() {
+  set +e   # chyba jednoho tréninku nesmí ukončit frontu (start.sh běží se set -e)
   while true; do
     for cfg in /workspace/input/aitk_jobs/*.yaml; do
       [ -e "$cfg" ] || continue

@@ -65,7 +65,8 @@ RUN git clone https://github.com/ostris/ai-toolkit.git /opt/ai-toolkit \
     && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir torch==2.13.0+cu126 torchvision==0.28.0+cu126 \
        --index-url https://download.pytorch.org/whl/cu126 \
     && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir -r requirements.txt \
-    && venv/bin/python -c "import torch, diffusers, toolkit; print('ai-toolkit OK, torch', torch.__version__)"
+    && venv/bin/pip install --no-cache-dir --no-deps torchaudio==2.11.0+cu126 --index-url https://download.pytorch.org/whl/cu126 \
+    && cd /opt/ai-toolkit && venv/bin/python -c "import torch, torchaudio, diffusers; from jobs import ExtensionJob; print('ai-toolkit OK, torch', torch.__version__)"
 # Webové rozhraní (Next.js) se sestaví už v image; spouští se jen s heslem AI_TOOLKIT_AUTH
 # sqlite3 se překládá ze zdrojů: předkompilovaná verze chce glibc 2.38, Ubuntu 22.04 má 2.35
 RUN cd /opt/ai-toolkit/ui && npm install --no-save --no-audit --no-fund \
