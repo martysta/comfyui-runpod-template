@@ -5,12 +5,12 @@ echo "===================================="
 echo "🚀 Start ComfyUI RunPod template"
 echo "===================================="
 
-# --- 0. Kontrola driveru: torch v image je postavený na CUDA 13.0 → potřebuje driver 580+ ---
+# --- 0. Kontrola driveru: torch v image je postavený na CUDA 12.6 → potřebuje driver 525+ ---
 DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
 DRIVER_MAJOR=${DRIVER_VERSION%%.*}
-if [ -n "$DRIVER_MAJOR" ] && [ "$DRIVER_MAJOR" -lt 580 ] 2>/dev/null; then
-  echo "🛑 NVIDIA driver $DRIVER_VERSION je příliš starý (potřeba 580+ kvůli CUDA 13.0)."
-  echo "   Smaž tento pod a vytvoř nový s filtrem CUDA verze 13.0."
+if [ -n "$DRIVER_MAJOR" ] && [ "$DRIVER_MAJOR" -lt 525 ] 2>/dev/null; then
+  echo "🛑 NVIDIA driver $DRIVER_VERSION je příliš starý (potřeba 525+ kvůli CUDA 12.6)."
+  echo "   Smaž tento pod a vytvoř nový s filtrem CUDA verze 12.4 nebo vyšší."
   sleep infinity
 fi
 echo "✅ NVIDIA driver: ${DRIVER_VERSION:-neznámý}"
@@ -155,8 +155,8 @@ apply_known_fixes() {
   # Starý driver: torch se NEpřeinstalovává (starší torch ComfyUI nepodporuje a rozbije comfy_kitchen).
   # Řešení je pod na stroji s novějším driverem.
   if grep -qi "NVIDIA driver on your system is too old" "$log"; then
-    echo "🛑 Driver na tomto stroji je pro torch s CUDA 13.0 příliš starý."
-    echo "   Smaž pod a vytvoř nový s filtrem CUDA verze 13.0 (driver 580 a vyšší)."
+    echo "🛑 Driver na tomto stroji je pro torch s CUDA 12.6 příliš starý."
+    echo "   Smaž pod a vytvoř nový s filtrem CUDA verze 12.4 nebo vyšší (driver 525 a vyšší)."
     return 1
   fi
 
