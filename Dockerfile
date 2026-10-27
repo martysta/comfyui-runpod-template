@@ -67,7 +67,10 @@ RUN git clone https://github.com/ostris/ai-toolkit.git /opt/ai-toolkit \
     && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir -r requirements.txt \
     && venv/bin/python -c "import torch, diffusers, toolkit; print('ai-toolkit OK, torch', torch.__version__)"
 # Webové rozhraní (Next.js) se sestaví už v image; spouští se jen s heslem AI_TOOLKIT_AUTH
-RUN cd /opt/ai-toolkit/ui && npm install --no-save --no-audit --no-fund && npx prisma generate && npm run build
+# sqlite3 se překládá ze zdrojů: předkompilovaná verze chce glibc 2.38, Ubuntu 22.04 má 2.35
+RUN cd /opt/ai-toolkit/ui && npm install --no-save --no-audit --no-fund \
+    && npm rebuild sqlite3 --build-from-source \
+    && npx prisma generate && npm run build
 
 # start.sh jde taky mimo /workspace
 COPY start.sh /opt/start.sh
