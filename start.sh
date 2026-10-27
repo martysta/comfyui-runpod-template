@@ -39,6 +39,49 @@ mkdir -p /workspace/output /workspace/input /workspace/user
 [ -L /opt/ComfyUI/user ] || (rm -rf /opt/ComfyUI/user && ln -s /workspace/user /opt/ComfyUI/user)
 echo "✅ Symlinky OK"
 
+# --- 2a. ai-toolkit: data na volume, fronta tréninků a volitelné webové rozhraní ---
+AITK=/opt/ai-toolkit
+AITK_DATA=/workspace/ai-toolkit
+export HF_HOME=/workspace/hf_cache   # základní modely pro trénink (desítky GB) přežijí restart
+mkdir -p "$AITK_DATA/datasets" "$AITK_DATA/data" "$HF_HOME" \
+         /workspace/input/aitk_jobs /workspace/output/aitk /workspace/output/aitk_logs
+for d in datasets data; do
+  [ -L "$AITK/$d" ] || (rm -rf "$AITK/$d" && ln -s "$AITK_DATA/$d" "$AITK/$d")
+done
+[ -L "$AITK/output" ] || (rm -rf "$AITK/output" && ln -s /workspace/output/aitk "$AITK/output")
+touch "$AITK_DATA/aitk_db.db"
+[ -L "$AITK/aitk_db.db" ] || (rm -f "$AITK/aitk_db.db" && ln -s "$AITK_DATA/aitk_db.db" "$AITK/aitk_db.db")
+# natrénované LoRA uvidí ComfyUI v seznamu LoRA pod aitk/...
+[ -L "$MODELS_DIR/loras/aitk" ] || ln -s /workspace/output/aitk "$MODELS_DIR/loras/aitk"
+
+# Fronta: konfigurace *.yaml nahraná do /workspace/input/aitk_jobs (např. přes ComfyUI /upload/image)
+# se spustí jedna po druhé; log jde do /workspace/output/aitk_logs, kde je čitelný přes ComfyUI /view.
+aitk_queue() {
+  while true; do
+    for cfg in /workspace/input/aitk_jobs/*.yaml; do
+      [ -e "$cfg" ] || continue
+      name=$(basename "$cfg" .yaml)
+      [ -e "/workspace/output/aitk_logs/$name.log" ] && continue
+      echo "🏋️ ai-toolkit: spouštím trénink $name"
+      (cd "$AITK" && HF_HOME="$HF_HOME" venv/bin/python run.py "$cfg") \
+        > "/workspace/output/aitk_logs/$name.log" 2>&1
+      echo "exit code: $?" >> "/workspace/output/aitk_logs/$name.log"
+      echo "🏁 ai-toolkit: trénink $name skončil"
+    done
+    sleep 15
+  done
+}
+aitk_queue &
+
+# Webové rozhraní na portu 8675 jen s heslem (AI_TOOLKIT_AUTH v proměnných prostředí podu)
+if [ -n "$AI_TOOLKIT_AUTH" ]; then
+  echo "🌐 Spouštím ai-toolkit UI na portu 8675"
+  (cd "$AITK/ui" && npx prisma db push --skip-generate >/dev/null 2>&1; HF_HOME="$HF_HOME" npm run start) \
+    > /tmp/aitk_ui.log 2>&1 &
+else
+  echo "⏭️ ai-toolkit UI se nespouští (není nastavené heslo AI_TOOLKIT_AUTH)"
+fi
+
 # --- 2b. Vynuť angličtinu jako výchozí jazyk (jen když nastavení ještě neexistuje) ---
 SETTINGS_FILE="/workspace/user/default/comfy.settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"

@@ -50,9 +50,28 @@ RUN git clone --depth=1 https://github.com/willmiao/ComfyUI-Lora-Manager.git cus
 
 RUN test -f /opt/ComfyUI/main.py || (echo "main.py chybí!" && exit 1)
 
+# --- ai-toolkit (trénink LoRA) ve vlastním venv, aby jeho torch a knihovny nekolidovaly s ComfyUI ---
+# Pevný commit; torch 2.13 v sestavení cu126 (stejný požadavek na driver 525+ jako ComfyUI).
+ARG AITK_COMMIT=221cac39a02890b022386933cd96e489cf8b04e5
+RUN apt-get update && apt-get install -y --no-install-recommends python3-venv ca-certificates gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/ostris/ai-toolkit.git /opt/ai-toolkit \
+    && cd /opt/ai-toolkit && git checkout ${AITK_COMMIT} \
+    && python3 -m venv venv \
+    && printf "torch==2.13.0+cu126\ntorchvision==0.28.0+cu126\n" > /opt/aitk_constraints.txt \
+    && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir torch==2.13.0+cu126 torchvision==0.28.0+cu126 \
+       --index-url https://download.pytorch.org/whl/cu126 \
+    && PIP_CONSTRAINT=/opt/aitk_constraints.txt venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && venv/bin/python -c "import torch, diffusers, toolkit; print('ai-toolkit OK, torch', torch.__version__)"
+# Webové rozhraní (Next.js) se sestaví už v image; spouští se jen s heslem AI_TOOLKIT_AUTH
+RUN cd /opt/ai-toolkit/ui && npm install --no-save --no-audit --no-fund && npx prisma generate && npm run build
+
 # start.sh jde taky mimo /workspace
 COPY start.sh /opt/start.sh
 RUN chmod +x /opt/start.sh
 
-EXPOSE 8188
+EXPOSE 8188 8675
 CMD ["/opt/start.sh"]
